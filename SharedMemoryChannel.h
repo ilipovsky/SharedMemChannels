@@ -9,7 +9,7 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/vector.hpp>
-#include <boost/any.hpp>
+//#include <boost/any.hpp>
 
 //#include <boost/interprocess/managed_shared_memory.hpp>
 #include <boost/interprocess/managed_windows_shared_memory.hpp>
@@ -118,13 +118,13 @@ namespace SharedMemIPC
 
 
     struct NullSemaphore {
-        NullSemaphore(uint32_t uiInitialCount) {}
+        NullSemaphore(size_t uiInitialCount) {}
         void wait() {}
         void post() {}
     };
 
     struct DefaultSemaphore {
-        DefaultSemaphore(uint32_t uiInitialCount) : semaphore(uiInitialCount) {}
+        DefaultSemaphore(size_t uiInitialCount) : semaphore((assert(uiInitialCount <= std::numeric_limits<unsigned int>::max()), static_cast<uint32_t>(uiInitialCount))) {}
         void wait() { semaphore.wait(); }
         void post() { semaphore.post(); }
         bip::interprocess_semaphore semaphore;
@@ -564,6 +564,7 @@ namespace SharedMemIPC
                     new (&*pCurPoolPtr) Element(std::forward<Types>(args)..., segment.get_segment_manager()); //Element(std::forward<Types>(args)..., segment.get_segment_manager());
                     //Note, the funky &* is used, because * is overloaded operator that gives us the reference to the object. Applying & on a reference results in address of the object the ref points to.
                     //Alternatively, you can use pCurPoolPtr.get().get() -- the first get obtains offset_ptr. the next get obtains the actual address from offset_ptr
+                    //static_assert (false, "????");
                 }
                 else if constexpr (std::is_constructible_v<Element, Types...>)
                 {
@@ -572,10 +573,15 @@ namespace SharedMemIPC
                     new (&*pCurPoolPtr) Element(std::forward<Types>(args)...);
                     //Note, the funky &* is used, because * is overloaded operator that gives us the reference to the object. Applying & on a reference results in address of the object the ref points to.
                     //Alternatively, you can use pCurPoolPtr.get().get() -- the first get obtains offset_ptr. the next get obtains the actual address from offset_ptr
+                    //static_assert (false, "????");
                 }
                 else
                 {
-                    static_assert (false, "Don't know how to construct object of type 'Element'");
+                    //static_assert (false, "Don't know how to construct object of type 'Element'");
+                    [] <bool flag = false>()
+                    {
+                        static_assert(flag, "Don't know how to construct object of type 'Element'");
+                    }();
                 }
             }
 
@@ -958,10 +964,10 @@ namespace SharedMemIPC
     // this one is good for situation where producers in multiple processes/threads
     //want to use SAME queue (usually, for control/cmd purposes)
     template <typename Element> 
-    using SharedProducer = Producer<Element, NullSemaphore, bip::ipcdetail::windows_mutex>;
+    using SharedProducer = Producer<Element, NullSemaphore, bip::ipcdetail::winapi_mutex>;
 
     // this one is good for situation where consumers in multiple processes/threads
     //want to use SAME queue (usually, as worker threads that are fed from same queue)
     template <typename Element> 
-    using SharedConsumer = Consumer<Element, NullSemaphore, bip::ipcdetail::windows_mutex>;
+    using SharedConsumer = Consumer<Element, NullSemaphore, bip::ipcdetail::winapi_mutex>;
 }

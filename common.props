@@ -1,0 +1,133 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="Vcpkg">
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+  </PropertyGroup>
+  <PropertyGroup Label="UserMacros">
+    <APP_ROOT>$(SolutionDir)</APP_ROOT>
+    <AppDeployDir>$(APP_ROOT)\bin\$(Configuration)</AppDeployDir>
+    <AppLibDir>$(AppDeployDir)</AppLibDir>
+    <AppPDBDir>$(APP_ROOT)\pdb\$(Configuration)\</AppPDBDir>
+    <AppLibDebugDir>$(APP_ROOT)\bin\Debug\</AppLibDebugDir>
+    <AppLibReleaseDir>$(APP_ROOT)\bin\Release\</AppLibReleaseDir>
+    <THIRDPARTY_URL>https://wush.net/svn/cytonome/Trunk/Viper_Development/3rdParty</THIRDPARTY_URL>
+    <THIRDPARTY_ROOT>C:\3rdParty\</THIRDPARTY_ROOT>
+    <!--BOOST_ROOT>$(THIRDPARTY_ROOT)\boost_1_74_0</BOOST_ROOT-->
+    <OPENCV_ROOT>$(THIRDPARTY_ROOT)\OpenCV24136</OPENCV_ROOT>
+    <QWT_ROOT>$(THIRDPARTY_ROOT)\Qwt\qwt-6.1-rc3</QWT_ROOT>
+    <TINYXML_ROOT>$(THIRDPARTY_ROOT)\tinyxml_w_txf</TINYXML_ROOT>
+    <TINYXML2_ROOT>$(THIRDPARTY_ROOT)\tinyxml2\tinyxml2\bin</TINYXML2_ROOT>
+    <ZLIB_ROOT>$(THIRDPARTY_ROOT)\ZLib\zlib-1.2.8</ZLIB_ROOT>
+    <QTDIR>C:\Qt\Qt5.1.1\5.1.1\msvc2010</QTDIR>
+    <LocalDebuggerEnvironment>PATH=%QWT_ROOT%\lib;%OPENCV_ROOT%\build\x86\vc10\bin;%QTDIR%\bin;%PATH%</LocalDebuggerEnvironment>
+    <GetSvnInfoDir>$(AppDeployDir)</GetSvnInfoDir>
+    <OpenCVLibDir>$(OPENCV_ROOT)\build\x86\vc10\bin\</OpenCVLibDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutDir>$(AppDeployDir)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <IntDir>$(APP_ROOT)\IntermediateFiles\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <BuildLogFile>$(APP_ROOT)\IntermediateFiles\$(Platform)\$(Configuration)\$(ProjectName)\</BuildLogFile>
+  </PropertyGroup>
+  <PropertyGroup Label="Debugging Properties">
+    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>_WIN32_WINNT=_WIN32_WINNT_WIN7;_UNICODE;UNICODE;BASLER_USB3_CAMERA;$(DefineConstants);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ProgramDataBaseFileName>$(AppPDBDir)vc$(PlatformToolsetVersion)\$(TargetName).static.pdb</ProgramDataBaseFileName>
+      <AdditionalIncludeDirectories>$(APP_ROOT);$(APP_ROOT)\Plugins;$(APP_ROOT)\PluginShell;$(APP_ROOT)\AppAsyncInterface;$(APP_ROOT)\3rdPartyHeaderOnlyLibs\json-develop\include;$(APP_ROOT)\3rdPartyHeaderOnlyLibs;$(BOOST_ROOT);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>
+      </ForcedIncludeFiles>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+    </ClCompile>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+      <Message>Populating $(OutDir) with third-party DLLs and copying these plus $(TargetName)$(TargetExt) into $(ViperDeployDir)</Message>
+      <Outputs>
+      </Outputs>
+    </CustomBuildStep>
+    <!--Lib>
+      <AdditionalDependencies>psapi.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(BOOST_ROOT)\lib</AdditionalLibraryDirectories>
+    </Lib-->
+    <Link>
+      <AdditionalDependencies>psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ProgramDatabaseFile>$(AppPDBDir)vc$(PlatformToolsetVersion)\$(TargetName).pdb</ProgramDatabaseFile>
+      <AdditionalLibraryDirectories>$(AppLibDir);$(TINYXML_ROOT)\$(Configuration);$(TINYXML2_ROOT)\$(PLATFORM)-$(Configuration);$(SOLUTIONDIR)\..\Common\Libs\$(Platform)\$(Configuration);$(OutputPath);$(ProgramFiles)\National Instruments\Shared\ExternalCompilerSupport\c\lib32\msvc;$(OPENCV_ROOT)\build\x86\vc10\lib;$(THIRDPARTY_ROOT)\WinSDK_v7.1\Lib;$(QTDIR)\lib;$(BOOST_ROOT)\lib;$(APP_ROOT)ViperMain\Debug;$(APP_ROOT)\bin\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <ImportLibrary>$(OutDir)$(TargetName).lib</ImportLibrary>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <BuildMacro Include="APP_ROOT">
+      <Value>$(APP_ROOT)</Value>
+    </BuildMacro>
+    <BuildMacro Include="AppDeployDir">
+      <Value>$(AppDeployDir)</Value>
+    </BuildMacro>
+    <BuildMacro Include="AppLibDir">
+      <Value>$(AppLibDir)</Value>
+    </BuildMacro>
+    <BuildMacro Include="AppPDBDir">
+      <Value>$(AppPDBDir)</Value>
+    </BuildMacro>
+    <BuildMacro Include="AppLibDebugDir">
+      <Value>$(AppLibDebugDir)</Value>
+    </BuildMacro>
+    <BuildMacro Include="AppLibReleaseDir">
+      <Value>$(AppLibReleaseDir)</Value>
+    </BuildMacro>
+    <BuildMacro Include="THIRDPARTY_URL">
+      <Value>$(THIRDPARTY_URL)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="THIRDPARTY_ROOT">
+      <Value>$(THIRDPARTY_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <!--BuildMacro Include="BOOST_ROOT">
+      <Value>$(BOOST_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro-->
+    <BuildMacro Include="OPENCV_ROOT">
+      <Value>$(OPENCV_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="QWT_ROOT">
+      <Value>$(QWT_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="TINYXML_ROOT">
+      <Value>$(TINYXML_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="TINYXML2_ROOT">
+      <Value>$(TINYXML2_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="ZLIB_ROOT">
+      <Value>$(ZLIB_ROOT)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="QTDIR">
+      <Value>$(QTDIR)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="LocalDebuggerEnvironment">
+      <Value>$(LocalDebuggerEnvironment)</Value>
+    </BuildMacro>
+    <BuildMacro Include="GetSvnInfoDir">
+      <Value>$(GetSvnInfoDir)</Value>
+    </BuildMacro>
+    <BuildMacro Include="OpenCVLibDir">
+      <Value>$(OpenCVLibDir)</Value>
+    </BuildMacro>
+  </ItemGroup>
+</Project>
