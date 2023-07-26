@@ -11,9 +11,7 @@
     <AppPDBDir>$(APP_ROOT)\pdb\$(Configuration)\</AppPDBDir>
     <AppLibDebugDir>$(APP_ROOT)\bin\Debug\</AppLibDebugDir>
     <AppLibReleaseDir>$(APP_ROOT)\bin\Release\</AppLibReleaseDir>
-    <THIRDPARTY_URL>https://wush.net/svn/cytonome/Trunk/Viper_Development/3rdParty</THIRDPARTY_URL>
     <THIRDPARTY_ROOT>C:\3rdParty\</THIRDPARTY_ROOT>
-    <!--BOOST_ROOT>$(THIRDPARTY_ROOT)\boost_1_74_0</BOOST_ROOT-->
     <OPENCV_ROOT>$(THIRDPARTY_ROOT)\OpenCV24136</OPENCV_ROOT>
     <QWT_ROOT>$(THIRDPARTY_ROOT)\Qwt\qwt-6.1-rc3</QWT_ROOT>
     <TINYXML_ROOT>$(THIRDPARTY_ROOT)\tinyxml_w_txf</TINYXML_ROOT>
