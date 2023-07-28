@@ -7,3 +7,5 @@
 /IntermediateFiles
 /pdb
 /vcpkg_installed
+/SharedMemoryChannel.ixx
+/TestUtil.ixx
