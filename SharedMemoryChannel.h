@@ -23,7 +23,6 @@
 #include <boost/lockfree/spsc_queue.hpp>
 
 
-#include <iostream>
 #undef max 
 #undef min
 

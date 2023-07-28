@@ -145,6 +145,10 @@
   <ItemGroup>
     <ClCompile Include="TestProducer.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\SharedMemoryChannel.h" />
+    <ClInclude Include="..\TestUtil.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
