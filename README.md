@@ -1,6 +1,12 @@
 # SharedMemChannels
 A C++ IPC inspired by MS Threading Channels
 
+Right now works in Windows, but will be extended for Linux in the future. (Alas, anynomous shared memory works not as elegantly in Linux, but I have some ideas on how to get around it.)
+
+Before building the solution, make sure VCPKG is installed in your system. 
+
+
+
 Let’s look at how shared memory is allocated. The overview:
 
 Memory provisioning (i.e. allocation of the big shared mem segment). This is the raw mem block.
