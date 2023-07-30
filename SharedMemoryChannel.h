@@ -139,28 +139,7 @@ namespace SharedMemIPC
     template <typename Element, typename SemaphoreType>
     struct Channel : public Queue<Element>
     {
-#if 1
         using Queue<Element>::Queue; //inherit CTORs
-#else
-        Channel(size_t uiSize, Alloc<Ptr<Element>> a) :
-            Queue<Element>(uiSize, a)
-        {
-            if constexpr (std::is_default_constructible_v<Ptr<Element>>)
-            {
-                auto uiSlots = Queue<Element>::write_available();
-                for (decltype(uiSlots) i = 0; i < uiSlots; i++)
-                {
-                    Queue<Element>::push(Ptr<Element>{});
-                }
-
-                for (decltype(uiSlots) i = 0; i < uiSlots; i++)
-                {
-                    Ptr<Element> t;
-                    Queue<Element>::pop(t);
-                }
-            }
-        }
-#endif
 
         //Queue<Element> queue_{};
         SemaphoreType semAvailableForConsumer_{ Queue<Element>::read_available() };
@@ -207,16 +186,6 @@ namespace SharedMemIPC
         constexpr static int value = 0;
     };
 
-#if 0
-    template <typename Element, typename SemaphoreType = DefaultSemaphore>
-    struct PoolParams
-    {
-        size_t m_uiMaxNumOfQueues = 0;
-        size_t m_uiQueueSize = 0;
-        size_t m_uiPoolSize = 0;
-        size_t m_uiOverallShMemSize = 0; // has to be declared the last, because initialization order depends on the ones above
-    };
-#endif
 
     constexpr static size_t uiDefaultQueueSize = 50; // this is like #define, just compile-time (as opposed to preprocess-time)
     constexpr static size_t uiDefaultMaxNumOfQueues = 64; // aggressively assuming that we have up to 64 producer-consumer pairs
@@ -422,14 +391,11 @@ namespace SharedMemIPC
             // https://stackoverflow.com/a/57446079. But they would complicate each of the Element classes, merely shifting complexity to them.
             // The Element classes are often very simple structs, so complicating them would be very confusing.
             //
-            // In the future, with C++23, when compile-time reflection is available, it will be possible to browse, at compile-time, through
+            // In the future, with C++26??, when compile-time reflection is available, it will be possible to browse, at compile-time, through
             // each member of Element type, and try to initialize each public member with the allocator. This can be done recursively (which is
             // possible, if compile-time facilities are available).
-            //
-            // For now, the strategy of individually handling the weird Element cases individually is what was chosen, even though it is
-            // obfuscatory inherently.
 
-            /* The FINAL 2 cases below are a device useful to provide construction in 2 common cases:
+            /* The 2 cases below are a device useful to provide construction in 2 common cases:
             1) When the Ptr is to point to a class that accepts custom allocator (e.g. the ShMemIPC::String class), to allocate internal memory.
             2) For simple classes that don't use virtual function tables (which is all the classes that are used here; in particular, POD classes like DataToUI)
 
@@ -457,47 +423,36 @@ namespace SharedMemIPC
             Element* pObjectPool; // create the pool of actual objects in interprocess memory
             auto &segment = *m_pSegment;
 
-            // Let's handle the weird Element cases first:
-            //if constexpr (requires {Element().str; }) <-- I cannot use this on MSVC 16.8, for some reason (and it *should* work, since works on CLANG and GCC)
-            if constexpr (dummyconstexprobj<Element>::value == 1) // have to use this dummy func as a hack for the above problem
-            {
-                //static_assert(1 == 0, "A PrintInfoT case");
-                /*vecSharedPool.emplace_back(
-                    make_managed_shared_ptr(segment.construct<Element>(unique_id_gen().c_str())
-                        (Element{ decltype(Element::ts)(), SharedMemIPC::CharVector{ segment.get_segment_manager() } }), segment)
-                );*/
-                pObjectPool =
-                    segment.find_or_construct<Element>("ObjPool")[m_PoolParams.m_uiPoolSize]
-                    (Element{ decltype(Element::ts)(), SharedMemIPC::CharVector{ segment.get_segment_manager() } });
-            }
-            else if constexpr (dummyconstexprobj<Element>::value == 2) // have to use this dummy func as a hack for the above problem
-            {
-                //static_assert(1 == 0, "A CHAN_ADD_OR_DEL_CMD case");
-                pObjectPool =
-                    segment.find_or_construct<Element>("ObjPool")[m_PoolParams.m_uiPoolSize]
-                    (Element{ decltype(Element::eCmd)(), SharedMemIPC::String{ segment.get_segment_manager() } });
-            }
-
             // Now we can handle the 2 common cases
-            // 1) The case where Element needs an allocator appended.
-            else if constexpr (std::is_constructible_v<Element, decltype(segment.get_segment_manager())>)
+            // 1) The case where Element needs an allocator appended, so we will use this constructor
+            if constexpr (std::is_constructible_v<Element, decltype(segment.get_segment_manager())>)
             {
                 //static_assert(1 == 0, "That's where we are");
                 pObjectPool =
                     segment.find_or_construct<Element>("ObjPool")[m_PoolParams.m_uiPoolSize]
                     (segment.get_segment_manager());
             }
-            // 2) The case where Element doesn't need an allocator (eg all simple POD structs)
-            else
+            // 2) The case where Element doesn't need an allocator (eg all simple POD structs), we can use the default constructor
+            else if constexpr (std::is_constructible_v<Element>)
             {
                 //static_assert(1 == 0, "Why only here?");
                 pObjectPool =
                     segment.find_or_construct<Element>("ObjPool")[m_PoolParams.m_uiPoolSize]
                     ();
             }
+            else //oh-oh
+            {
+                [] <bool flag = false>()
+                {
+                    static_assert(flag, "Don't know how to construct objects of type 'Element' during data pool init");
+                }();
+
+            }
+            // TBD: in the future, I'm considering passing a special placeholder type to notify us to not even attempt to 
+            // construct the data pool using any of the Element's CTORs. Instead, the user should have the option to specify
+            // the raw byte size of the pool, avoiding the hassle of Element construction altogether.
 
 
-#           if 1 //!!!!!!!!!!!!!!
             // Now --if it hasn't ALREADY been created -- create the shared pointer pool in interprocess memory:
             if (pvecSharedPool->size() == 0)
             {
@@ -508,31 +463,6 @@ namespace SharedMemIPC
                 }
             }
 
-#           elif 0
-            //Create a shared pointer in shared memory
-            //pointing to a newly created object in the segment
-            vecSharedPool =
-                segment.find_or_construct_it<Ptr<Element>>("PtrPool")[m_PoolParams.m_uiPoolSize]
-                //Arguments to construct the shared pointer
-                (pObjectPool, segment.get_segment_manager());
-
-#           endif
-
-#if 0
-            for (size_t j = 0; j < m_PoolParams.m_uiMaxNumOfQueues; j++)
-            {
-                auto uiSlots = Queue<Element>::write_available();
-                for (decltype(uiSlots) i = 0; i < uiSlots; i++)
-                {
-                    Queue<Element>::push(Element{});
-                }
-
-                for (decltype(uiSlots) i = 0; i < uiSlots; i++)
-                {
-                    Queue<Element>::pop(t);
-                }
-            }
-#endif
         }
 
 
@@ -558,25 +488,20 @@ namespace SharedMemIPC
 
                 if constexpr (std::is_constructible_v<Element, Types..., decltype(segment.get_segment_manager())>)
                 {
-                    //static_assert(1 == 0, "Hi?...");
                     pCurPoolPtr->~Element(); // destroy the obj in the pool, and then construct a new one in its place:
                     new (&*pCurPoolPtr) Element(std::forward<Types>(args)..., segment.get_segment_manager()); //Element(std::forward<Types>(args)..., segment.get_segment_manager());
                     //Note, the funky &* is used, because * is overloaded operator that gives us the reference to the object. Applying & on a reference results in address of the object the ref points to.
                     //Alternatively, you can use pCurPoolPtr.get().get() -- the first get obtains offset_ptr. the next get obtains the actual address from offset_ptr
-                    //static_assert (false, "????");
                 }
                 else if constexpr (std::is_constructible_v<Element, Types...>)
                 {
-                    //static_assert(1 == 0, "Hi...");
                     pCurPoolPtr->~Element(); // destroy the obj in the pool, and then construct a new one in its place:
                     new (&*pCurPoolPtr) Element(std::forward<Types>(args)...);
                     //Note, the funky &* is used, because * is overloaded operator that gives us the reference to the object. Applying & on a reference results in address of the object the ref points to.
                     //Alternatively, you can use pCurPoolPtr.get().get() -- the first get obtains offset_ptr. the next get obtains the actual address from offset_ptr
-                    //static_assert (false, "????");
                 }
                 else
                 {
-                    //static_assert (false, "Don't know how to construct object of type 'Element'");
                     [] <bool flag = false>()
                     {
                         static_assert(flag, "Don't know how to construct object of type 'Element'");
@@ -588,113 +513,6 @@ namespace SharedMemIPC
 
         }
     };
-
-
-#if 0
-        template<class ... Types>
-        Ptr<Element> CreatePtr(Types&&... args)
-        {
-            auto unique_id_gen = [&]()->std::string
-            {
-                return std::string("element") + std::to_string(++Channel<Element>::m_channel.uiElementCounter);
-            };
-
-            /* The device below is useful to provide construction in 2 cases:
-            1) When the Ptr is to point to a class that accepts custom allocator (e.g. the ShMemIPC::String class), to allocate internal memory.
-            2) For simple classes that don't use virtual function tables (which is all the classes that are used here; in particular, DataToUI)
-
-            This solution is still imperfect though. For instance, if:
-
-                struct Element
-                {
-                    int* ptr = new int(4); // BAD!!, this class now relies on heap-allocated memory, which is internal only to the Producer process!
-
-                    struct Subelement // OK, it's fine to have nested objects
-                    {
-                        float fSomeVal = 23.f; //OK, just a POD variable
-                        float &ref = fSomeVal; //OK, ref is just a compile-time alias
-                        const float *pf = &fSomeVal; // BAD!!, because even though pf will point to the interprocess memory area, it is an absolute-addressed pointer, while the interprocess area is mapped using relative addressing and base addresses can be different
-                    } subel;
-                };
-
-                Conclusion: don't allow pointers in the Element types that you pass here!
-
-                Generally speaking, we don't (cannot!) detect whether any member in an arbitrary class is a pointer. Perhaps, C++23 or later will change this, but impossible now.
-                Which means that some classes that should be prohibited from being constructed via CreatePtr might still be constructed, to potential detriment of a naif.
-                However, the device below, while imperfect, is much better than nothing.
-            */
-
-            // if the object is non-trivially copyable but accepts customizable boost::interprocess allocators, then assume that to construct it, we have to forward those args and affix the allocator (segment_manager from boost::interprocess)
-            if constexpr (!std::is_trivially_copyable_v<Element> &&
-                std::is_constructible_v<Element, Types..., decltype((Channel<Element>::segment).get_segment_manager())>)
-            {
-                //static_assert(1 == 0, "That's where we are");
-                return make_managed_shared_ptr(Channel<Element>::segment.construct<Element>(unique_id_gen().c_str())
-                    (std::forward<Types>(args)..., (Channel<Element>::segment).get_segment_manager()), Channel<Element>::segment);
-            }
-            else //if constexpr (std::is_trivially_copyable_v<Element>)// Assume that we don't allocate anything outside the class's footprint
-                //(i.e. no extra allocations in the object, ie we can copy it with a simple memcopy, just knowing the compile-time sizeof of the class)
-            {
-                //static_assert(1 == 0, "Why only here?");
-                return make_managed_shared_ptr(Channel<Element>::segment.construct<Element>(unique_id_gen().c_str())
-                    (std::forward<Types>(args)...), Channel<Element>::segment);
-            }
-            //else static_assert(false, "Your object is not supported in this routine at this time."); // your class probably has virtual table pointer and/or does custom copy/move/assignment construction
-        }
-
-        std::vector<SharedMemIPC::Ptr<Element>> vecSharedPool; // a pool pre-allocated bip::shared_ptrs to interprocess shared memory, ready-made for fast and easy production of elements to push into the queue
-};
-#elif 0
-        template<class ... Types>
-        Ptr<Element> CreatePtr(Types&&... args)
-        {
-            auto unique_id_gen = [&]()->std::string
-            {
-                return std::string("element") + std::to_string(++Channel<Element>::m_channel.uiElementCounter);
-            };
-
-            /* The device below is useful to provide construction in 2 cases:
-            1) When the Ptr is to point to a class that accepts custom allocator (e.g. the ShMemIPC::String class), to allocate internal memory.
-            2) For simple classes that don't use virtual function tables (which is all the classes that are used here; in particular, DataToUI)
-
-            This solution is still imperfect though. For instance, if:
-
-                struct Element
-                {
-                    int* ptr = new int(4); // BAD!!, this class now relies on heap-allocated memory, which is internal only to the Producer process!
-
-                    struct Subelement // OK, it's fine to have nested objects
-                    {
-                        float fSomeVal = 23.f; //OK, just a POD variable
-                        float &ref = fSomeVal; //OK, ref is just a compile-time alias
-                        const float *pf = &fSomeVal; // BAD!!, because even though pf will point to the interprocess memory area, it is an absolute-addressed pointer, while the interprocess area is mapped using relative addressing and base addresses can be different
-                    } subel;
-                };
-
-                Conclusion: don't allow pointers in the Element types that you pass here!
-
-                Generally speaking, we don't (cannot!) detect whether any member in an arbitrary class is a pointer. Perhaps, C++23 or later will change this, but impossible now.
-                Which means that some classes that should be prohibited from being constructed via CreatePtr might still be constructed, to potential detriment of a naif.
-                However, the device below, while imperfect, is much better than nothing.
-            */
-
-            return make_managed_shared_ptr(Channel<Element>::segment.construct<Element>(unique_id_gen().c_str())
-                (std::forward<Types>(args)...), Channel<Element>::segment);
-
-            //std::vector<SharedMemIPC::Ptr<Element>> vecSharedPool; // a pool pre-allocated bip::shared_ptrs to interprocess shared memory, ready-made for fast and easy production of elements to push into the queue
-        }
-    };
-#endif
-
-
-#if !_HAS_CXX17 
-    template <typename Element, typename SemaphoreType>
-    typename MemoryPool<typename Element, typename SemaphoreType>::PoolParamsT MemoryPool<Element, SemaphoreType>::_PoolParamsDummy{};
-    template <typename Element, typename SemaphoreType>
-    size_t MemoryPool<Element, SemaphoreType>::uiDummy{};
-    template <typename Element, typename SemaphoreType>
-    std::atomic_size_t MemoryPool<Element, SemaphoreType>::uiatomicDummy{};
-#endif // _HAS_CXX17
 
 
 
@@ -733,13 +551,6 @@ namespace SharedMemIPC
 			)
         {}
 
-#if 0
-        // new style (note the extra param acQueueName) (N named producers per 1 memory pool)
-        Producer(MemoryPoolT MemPool_, const char* acQueueName, FindOrConstructT va = FindOrConstructT) :
-            m_MemPool(MemPool_),
-            m_channel(m_MemPool.FindChannel(acQueueName))
-        {}
-#endif
 
         // new style (note the extra param GetAnonymousProducer) (N unnamed producers per 1 memory pool)
         Producer(MemoryPoolT MemPool_, GetAnonymousProducerT GetAnonymousProducer) :
@@ -747,20 +558,6 @@ namespace SharedMemIPC
             m_channel(m_MemPool.FindOrConstructChannel(GetAnonymousProducer))
         {}
 
-
-#if 0
-        // new style (note the extra param acQueueName) (N named producers per 1 memory pool)
-        Producer(const char* acShMemName, const char* acQueueName, size_t uiOverallShMemSize = 0 /*= (4 << 20)*/, size_t uiQueueSize = 50, size_t uiPoolSize = 0) :
-            m_MemPool(PoolParams<Element, SemaphoreType>(acShMemName, 0, uiOverallShMemSize, uiQueueSize, uiPoolSize)),
-            m_channel(m_MemPool.FindOrConstructChannel(acQueueName))
-        {}
-
-        // new style (note the extra param GetAnonymousProducer) (N unnamed producers per 1 memory pool)
-        Producer(const char* acShMemName, GetAnonymousProducerT GetAnonymousProducer, size_t uiOverallShMemSize = 0 /*= (4 << 20)*/, size_t uiQueueSize = 50, size_t uiPoolSize = 0) :
-            m_MemPool(PoolParams<Element, SemaphoreType>(acShMemName, 0, uiOverallShMemSize, uiQueueSize, uiPoolSize)),
-            m_channel(m_MemPool.FindOrConstructChannel(GetAnonymousProducer))
-        {}
-#endif
 
         // this is a blocking op
         bool Push(Ptr<Element> const& t)
@@ -782,77 +579,6 @@ namespace SharedMemIPC
         }
     };
 
-#if 0
-    template <typename Element, typename SemaphoreType = DefaultSemaphore>
-    struct Member
-    {
-        Member() = default;
-        Member(const Member&) = default;
-        Member(Member&&) = default;
-
-#if 0
-        struct UnrestrictedPerms
-        {
-            UnrestrictedPerms() { perms.set_unrestricted(); }
-            bip::permissions perms;
-        };
-#endif
-
-        PoolParams<Element, SemaphoreType> m_PoolParams{"", 0, 0, 0, 0};
-        //Segment segment;
-
-#if 0
-        //TBD inspired by https://stackoverflow.com/questions/26280041/how-to-i-create-a-boost-interprocess-vector-of-interprocess-containers
-        struct StrBuffPair
-        {
-            StrBuffPair() = delete;
-            StrBuffPair(size_t n, Manager m) : s(m), b(n, m) {}
-            String s;
-            Channel<Element, SemaphoreType> b;
-        };
-
-
-        using void_allocator = boost::container::scoped_allocator_adaptor<allocator<void, Manager>>;
-
-        class complex_data
-        {
-        public:
-            String       strName;
-            Channel<Element, SemaphoreType> queue;
-
-            //Since void_allocator is convertible to any other allocator<T>, we can simplify
-            //the initialization taking just one allocator for all inner containers.
-            typedef void_allocator allocator_type;
-
-            complex_data(complex_data const& other, const allocator_type& void_alloc)
-                : strName(other.strName, void_alloc), queue(other.queue, void_alloc)
-            {}
-            complex_data(const allocator_type& void_alloc)
-                : strName(void_alloc), queue(void_alloc)
-            {}
-            //Other members...
-            //
-        };
-#endif
-        //using NamedBuffer = std::pair<String, Channel<Element, SemaphoreType>>;
-        //using NamedBuffer = StrBuffPair;
-#if 1
-        using NamedBuffer = Channel<Element, SemaphoreType>;
-
-        NamedBuffer* channels_;
-        String* names_; // names for the above
-        //size_t& uiNumOfNamedQueues_; // overall size for the above pair of queues and names
-
-        //Channel<Element, SemaphoreType> m_channel;
-        //size_t m_uiPoolSize = 0;
-        //size_t uiOverallShMemSize = 0;
-        //std::vector<Ptr<Element>> vecSharedPool; // a pool pre-allocated bip::shared_ptrs to interprocess shared memory, ready-made for fast and easy production of elements to push into the queue
-        Ptr<Element>* vecSharedPool;
-        //std::atomic<uint32_t> m_uiCurPoolIndex = 0;
-        //std::atomic<float> m_uiCurPoolIndex{ 0.f };
-#endif
-    };
-#endif
 
     template <typename Element, typename SemaphoreType = DefaultSemaphore, typename MutexType = NullMutex>
     struct Consumer //: public Channel<Element, SemaphoreType>
@@ -871,16 +597,6 @@ namespace SharedMemIPC
         Consumer() = default;
         Consumer(const Consumer&) = default;
         Consumer(Consumer&&) = default;
-
-
-#if 0
-        Member<Element, SemaphoreType> Member_;
-        // legacy style
-        Consumer(const char* acShMemName) : Member_()
-            //m_MemPool(PoolParams<Element, SemaphoreType>(acShMemName, 1, 0, 0, 0))
-            //m_channel(m_MemPool.FindOrConstructChannel("UniqueQueue"))
-        {}
-#else
 
         // legacy style
         Consumer(const char* acShMemName, size_t uiOverallShMemSize = 0/*= (4 << 20)*/, size_t uiQueueSize = 50, size_t uiPoolSize = 0) :
@@ -902,35 +618,12 @@ namespace SharedMemIPC
             )
         {}
 
-#if 0
-        // new style (note the extra param acQueueName) (N named Consumers per 1 memory pool)
-        Consumer(MemoryPool<Element, SemaphoreType> MemPool_, const char* acQueueName) :
-            m_MemPool(MemPool_),
-            m_channel(m_MemPool.FindOrConstructChannel(acQueueName))
-        {}
-#endif
 
         // new style (note the extra param GetAnonymousConsumer) (N unnamed Consumers per 1 memory pool)
         Consumer(MemoryPool<Element, SemaphoreType> MemPool_, GetAnonymousConsumerT GetAnonymousConsumer) :
             m_MemPool(MemPool_),
             m_channel(m_MemPool.FindOrConstructChannel(GetAnonymousConsumer))
         {}
-
-#if 0
-        // new style (note the extra param acQueueName) (N named consumers per 1 memory pool)
-        Consumer(const char* acShMemName, const char* acQueueName, size_t uiOverallShMemSize = 0 /*= (4 << 20)*/, size_t uiQueueSize = 50, size_t uiPoolSize = 0) :
-            m_MemPool(PoolParams<Element, SemaphoreType>(acShMemName, 0, uiOverallShMemSize, uiQueueSize, uiPoolSize)),
-            m_channel(m_MemPool.FindOrConstructChannel(acQueueName))
-        {}
-
-        // new style (note the extra param GetAnonymousConsumer) (N unnamed consumers per 1 memory pool)
-        Consumer(const char* acShMemName, GetAnonymousConsumerT GetAnonymousConsumer, size_t uiOverallShMemSize = 0 /*= (4 << 20)*/, size_t uiQueueSize = 50, size_t uiPoolSize = 0) :
-            m_MemPool(PoolParams<Element, SemaphoreType>(acShMemName, 0, uiOverallShMemSize, uiQueueSize, uiPoolSize)),
-            m_channel(m_MemPool.FindOrConstructChannel(GetAnonymousConsumer))
-        {}
-#endif
-#endif
-
 
 
         // this is a blocking op
