@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-int main() 
+int main()
 {
 #ifdef NOISY
 	using MyString = NoisyString;
@@ -13,7 +13,9 @@ int main()
 	using MyString = SharedMemIPC::String;
 #endif
 
-	SharedMemIPC::NonBlockingProducer<MyString> shbuffIn("MySharedMemory");
+	SharedMemIPC::Consumer<SimpleStruct> ConsumerHistogramData(std::string("HistogramData") + "InstanceID0").c_str(), (600 + 1 + 1 + 1) * sizeof(DataToUI) + 16 * 4096, 1);
+
+	SharedMemIPC::NonBlockingProducer<MyString> shbuffIn("MySharedMemory2");
 
 	std::cout << "Pushing into shmem queue\n";
 
@@ -25,6 +27,6 @@ int main()
 		//std::cout << msg << std::endl;
 	}
 	using namespace std::chrono_literals;
-	std::this_thread::sleep_for(100s);
+	std::this_thread::sleep_for(20s);
 	return EXIT_SUCCESS;
 }

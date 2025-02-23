@@ -11,7 +11,7 @@ void Consumer()
 #else
 	using MyString = SharedMemIPC::String;
 #endif
-	SharedMemIPC::NonBlockingConsumer<MyString> shbuffOut("MySharedMemory");
+	SharedMemIPC::NonBlockingConsumer<MyString> shbuffOut("MySharedMemory2");
 	{
 		SharedMemIPC::Ptr<MyString> into;
 		while (shbuffOut.ReadAvailable())

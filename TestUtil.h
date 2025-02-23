@@ -16,3 +16,9 @@ struct NoisyString : public SharedMemIPC::String, noisy
 {
 	using SharedMemIPC::String::String; // inherit CTORs
 };
+
+struct SimpleStruct
+{
+	uint32_t points[512 * 512] = { 0 };
+	float fvalue = 0.f;
+};
